@@ -6,13 +6,17 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 
 #include <auv_pathPlanning/pose_node.hpp>
 #include <auv_pathPlanning/a_star.h>
 
 using namespace std::chrono_literals;
 using geometry_msgs::msg::PoseStamped;
-
+using geometry_msgs::msg::Pose;
+using nav_msgs::msg::Odometry;
+    
 
 class PathPlanning : public rclcpp::Node
 {
@@ -20,15 +24,35 @@ public:
     PathPlanning(rclcpp::NodeOptions options) : Node("node_name", options)
     {
         // init whatever is needed for your node
-        
+        cmd.header.frame_id = "world";
+        cmd.pose.position.x = 0.;
+        cmd.pose.position.y = 0.;
+        cmd.pose.position.z = -5.;
+        cmd.pose.orientation.x = 0.;
+        cmd.pose.orientation.y = 0.;
+        cmd.pose.orientation.z = 0.;
+        cmd.pose.orientation.w = 1.;
+
         // init subscribers
         subscriber = create_subscription<PoseStamped>(
             "/goal_pose",    // which topic
             10,         // QoS            
+            // std::bind(&PathPlanning::path_planning,this, std::placeholders::_1));
             [this](PoseStamped::UniquePtr msg)    // callback are perfect for lambdas
             {
                 last_goal = *msg;
                 last_goal.pose.position.set__z(-5.0);
+                path_planning();
+            });
+
+        // init subscribers
+        odomSubscriber = create_subscription<Pose>(
+            "/bluerov2/pose_gt",    // which topic
+            10,         // QoS            
+            [this](Pose::UniquePtr msg)    // callback are perfect for lambdas
+            {
+                last_odom = *msg;
+                current = auvNode(last_odom);   
             });
             
         // init publishers
@@ -36,26 +60,63 @@ public:
       
         // init timer - the function will be called with the given rate
         publish_timer = create_wall_timer(100ms,    // rate
-                                          [&](){publisher->publish(last_goal);});
+                                          [&]()
+                                          { // auto current = auvNode(last_odom);
+                                            if (path.size() > 1) {
+                                                if (current.isGoal(path[1]) && path.size() > 2) 
+                                                {
+                                                    path.erase(path.begin());
+                                                    std::cout << "Waypoint reached" << std::endl;
+                                                }
+                                                cmd.header.stamp = this->now();
+                                                cmd.pose = path[1];
+                                            } else {
+                                                RCLCPP_WARN(this->get_logger(), "Path planning failed or path is too short");
+                                            }
+                                            publisher->publish(cmd);
+                                          });
+        
     }   
   
 private:
     // declare any subscriber / publisher / timer
     rclcpp::Subscription<PoseStamped>::SharedPtr subscriber;
-    PoseStamped last_goal;
+    rclcpp::Subscription<Pose>::SharedPtr odomSubscriber;
+    PoseStamped last_goal{};
+    Pose last_odom{};
+    Pose init_pose{};
 
     rclcpp::Publisher<PoseStamped>::SharedPtr publisher;
     //geometry_msgs::msg::Pose2D pose;
+    PoseStamped cmd{};
     
     rclcpp::TimerBase::SharedPtr publish_timer;    
     
+    std::vector<auvNode> path{};
+    auvNode current{};
+    auvNode goal{};
     
-    void duplicateArm()
+    void path_planning() // PoseStamped::UniquePtr msg
     {
-        // use last_msg to build and publish command
 
+
+        // use last_msg to build and publish command
+        std::cout << "A* computation starting" << std::endl;
+        auvNode new_goal{};
+        if (last_goal.header.frame_id=="") new_goal = auvNode(0., 0., -5., 0.);
+        else new_goal = auvNode(last_goal.pose);
+        if (!new_goal.isGoal(goal)) 
+        {
+            std::cout << "new path being procesed" << std::endl;
+            goal = new_goal;
+            path = duels::Astar(current, goal);
+        }
         
-        
+        std::cout << "A* computation finished" << std::endl;
+        std::cout << "first waypoint: " << path[1].position.z << std::endl;
+        std::cout << "Goal: " << goal.position.z << std::endl;
+        std::cout << "last waypoint: " << path.back().position.z << std::endl;
+
     }
     
 };
