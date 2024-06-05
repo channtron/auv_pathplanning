@@ -8,6 +8,7 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/path.hpp>
 
 #include <auv_pathPlanning/pose_node.hpp>
 #include <auv_pathPlanning/a_star.h>
@@ -16,6 +17,7 @@ using namespace std::chrono_literals;
 using geometry_msgs::msg::PoseStamped;
 using geometry_msgs::msg::Pose;
 using nav_msgs::msg::Odometry;
+using nav_msgs::msg::Path;
     
 
 class PathPlanning : public rclcpp::Node
@@ -32,6 +34,7 @@ public:
         cmd.pose.orientation.y = 0.;
         cmd.pose.orientation.z = 0.;
         cmd.pose.orientation.w = 1.;
+
 
         // init subscribers
         subscriber = create_subscription<PoseStamped>(
@@ -57,24 +60,12 @@ public:
             
         // init publishers
         publisher = create_publisher<PoseStamped>("/bluerov2/cmd_pose", 10);   // topic + QoS
+        pathPublisher = create_publisher<Path>("Astar_path", 10);   // topic + QoS
       
         // init timer - the function will be called with the given rate
         publish_timer = create_wall_timer(100ms,    // rate
                                           [&]()
-                                          { // auto current = auvNode(last_odom);
-                                            if (path.size() > 1) {
-                                                if (current.isGoal(path[1]) && path.size() > 2) 
-                                                {
-                                                    path.erase(path.begin());
-                                                    std::cout << "Waypoint reached" << std::endl;
-                                                }
-                                                cmd.header.stamp = this->now();
-                                                cmd.pose = path[1];
-                                            } else {
-                                                RCLCPP_WARN(this->get_logger(), "Path planning failed or path is too short");
-                                            }
-                                            publisher->publish(cmd);
-                                          });
+                                          { publish_waypoints() });
         
     }   
   
@@ -87,6 +78,7 @@ private:
     Pose init_pose{};
 
     rclcpp::Publisher<PoseStamped>::SharedPtr publisher;
+    rclcpp::Publisher<Path>::SharedPtr pathPublisher;
     //geometry_msgs::msg::Pose2D pose;
     PoseStamped cmd{};
     
@@ -113,10 +105,33 @@ private:
         }
         
         std::cout << "A* computation finished" << std::endl;
-        std::cout << "first waypoint: " << path[1].position.z << std::endl;
-        std::cout << "Goal: " << goal.position.z << std::endl;
-        std::cout << "last waypoint: " << path.back().position.z << std::endl;
+        std::cout << "first waypoint: " << path[1].pose.position.z << std::endl;
+        std::cout << "Goal: " << goal.pose.position.z << std::endl;
+        std::cout << "last waypoint: " << path.back().pose.position.z << std::endl;
 
+    }
+
+    void publish_waypoints()
+    {
+        // auto current = auvNode(last_odom);
+        if (path.size() > 1) {
+            if (current.isGoal(path[1]) && path.size() > 2) 
+            {
+                path.erase(path.begin());
+                std::cout << "Waypoint reached" << std::endl;
+            }
+            cmd = path[1];
+
+            Path pathCmd{};
+            pathCmd.poses[path.size()];
+            pathCmd.header.frame_id = "world";
+            pathCmd.header.stamp = this->now();
+            for (auto const & waypoint : path) pathCmd.poses.push_back(waypoint);
+            pathPublisher->publish(pathCmd);
+        } else {
+            RCLCPP_WARN(this->get_logger(), "Path planning failed or path is too short");
+        }
+        publisher->publish(cmd);
     }
     
 };

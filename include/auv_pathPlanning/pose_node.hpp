@@ -1,6 +1,7 @@
 #ifndef BOAT_NODE_H
 #define BOAT_NODE_H
 
+#include <rclcpp/clock.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <vector>
@@ -9,44 +10,57 @@
 #include <algorithm>
 
 
-class auvNode : public geometry_msgs::msg::Pose
+class auvNode : public geometry_msgs::msg::PoseStamped
 {
   using auvNodePtr = std::unique_ptr<auvNode>;
 public:
 
   auvNode(double _x = 0., double _y = 0., double _z = 0., double _t = 0.)
   {
-    position.x = _x;
-    position.y = _y;
-    position.z = _z;
-    orientation.z = 1;
-    orientation.w = _t;
+    header.frame_id = "world";
+    rclcpp::Clock Clock{};
+    header.stamp = Clock.now();
+    pose.position.x = _x;
+    pose.position.y = _y;
+    pose.position.z = _z;
+    pose.orientation.z = 1;
+    pose.orientation.w = _t;
   }
 
-  auvNode(const geometry_msgs::msg::Pose &pose)
+  auvNode(const geometry_msgs::msg::Pose &_pose)
   {
-    position = pose.position;
-    orientation = pose.orientation;
+    header.frame_id = "world";
+    rclcpp::Clock Clock{};
+    header.stamp = Clock.now(); 
+    pose.position = _pose.position;
+    pose.orientation = _pose.orientation;
+  }
+
+  auvNode(const geometry_msgs::msg::PoseStamped &_pose)
+  {
+    header = _pose.header;
+    pose.position = _pose.pose.position;
+    pose.orientation = _pose.pose.orientation;
   }
 /*
   inline void set(const Pose2D &pose)
   {
     x = pose.x;
     y = pose.y;
-    orientation = pose.orientation;
+    pose.orientation = pose.pose.orientation;
   }
 */
   inline bool operator==(const auvNode &other) const
   {
-    return position==other.position;
+    return pose.position==other.pose.position;
   }
 
   
   float h(const auvNode &goal) const
   {
-    auto dx = goal.position.x - position.x;
-    auto dy = goal.position.y - position.y;
-    auto dz = goal.position.z - position.z;
+    auto dx = goal.pose.position.x - pose.position.x;
+    auto dy = goal.pose.position.y - pose.position.y;
+    auto dz = goal.pose.position.z - pose.position.z;
     return std::sqrt(std::pow(dx,2)+std::pow(dy,2)+std::pow(dz,2));
   }
 
@@ -55,9 +69,9 @@ public:
   bool isGoal(const auvNode &goal) const
   {
     const double tolerance = 0.5; // Define a tolerance for goal checking
-    return std::abs(position.x - goal.position.x) < tolerance &&
-            std::abs(position.y - goal.position.y) < tolerance &&
-            std::abs(position.z - goal.position.z) < tolerance;
+    return std::abs(pose.position.x - goal.pose.position.x) < tolerance &&
+            std::abs(pose.position.y - goal.pose.position.y) < tolerance &&
+            std::abs(pose.position.z - goal.pose.position.z) < tolerance;
   }
 
   std::vector<auvNodePtr> children() const
@@ -104,9 +118,9 @@ public:
     for (const auto &delta : movements)
     {
         auto child = std::make_unique<auvNode>(*this);
-        child->position.x += std::get<0>(delta);
-        child->position.y += std::get<1>(delta);
-        child->position.z += std::get<2>(delta);
+        child->pose.position.x += std::get<0>(delta);
+        child->pose.position.y += std::get<1>(delta);
+        child->pose.position.z += std::get<2>(delta);
         
         tf2::Quaternion q_orig, q_rot, q_new;
         q_orig.setRPY(0.0, 0.0, 0.0);
@@ -114,10 +128,10 @@ public:
         q_new = q_orig * q_new;
         // std::cout <<"x: " << q_rot.getX() << " y: " << q_rot.getY() << 
         //           " z: " << q_rot.getZ() << " w: " << q_rot.getW() << std::endl;
-        child->orientation.x = q_rot.getX();
-        child->orientation.y = q_rot.getY();
-        child->orientation.z = q_rot.getZ();
-        child->orientation.w = q_rot.getW();
+        child->pose.orientation.x = q_rot.getX();
+        child->pose.orientation.y = q_rot.getY();
+        child->pose.orientation.z = q_rot.getZ();
+        child->pose.orientation.w = q_rot.getW();
         out.push_back(std::move(child));
     }
     // std::cout << "children generated" << std::endl;
