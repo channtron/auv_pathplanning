@@ -65,7 +65,7 @@ public:
         // init timer - the function will be called with the given rate
         publish_timer = create_wall_timer(100ms,    // rate
                                           [&]()
-                                          { publish_waypoints() });
+                                          { publish_waypoints(); });
         
     }   
   
