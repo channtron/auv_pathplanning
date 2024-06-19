@@ -13,11 +13,18 @@
 #include <auv_pathPlanning/pose_node.hpp>
 #include <auv_pathPlanning/a_star.h>
 
+#include <octomap/octomap.h>
+#include <octomap_msgs/msg/octomap.hpp>
+// #include <octomap_msgs/msg/octomap_binary.h>
+#include <conversions.h>
+
 using namespace std::chrono_literals;
 using geometry_msgs::msg::PoseStamped;
 using geometry_msgs::msg::Pose;
 using nav_msgs::msg::Odometry;
 using nav_msgs::msg::Path;
+
+using octomap_msgs::msg::Octomap;
     
 
 class PathPlanning : public rclcpp::Node
@@ -57,6 +64,30 @@ public:
                 last_odom = *msg;
                 current = auvNode(last_odom);   
             });
+
+        
+        octoSubscriber = create_subscription<Octomap>(
+            "/bluerov2/octomap_full",    // which topic
+            10,         // QoS            
+            [this](Octomap::UniquePtr msg)    // callback are perfect for lambdas
+            {
+                // change for a function update octo in node
+                last_octo = *msg; 
+
+                octomap::AbstractOcTree* tree = octomap_msgs::msgToMap(*msg);
+                if (tree) {
+                    goal.updateOctree( dynamic_cast<octomap::OcTree *>(tree));
+                    std::cout<<"octree updated"<<std::endl;
+                    // if (goal.isFree(11.,0.,-5.,0)) std::cout<<"is free"<<std::endl;
+                    // else std::cout<<"is occupied"<<std::endl;
+                    // if (goal.imFree()) std::cout<<"is free"<<std::endl;
+                    // else std::cout<<"is occupied"<<std::endl;
+                    std::cout<<"Occupancy: "<< goal.imFree() <<std::endl;
+
+                } else {
+                    RCLCPP_ERROR(this->get_logger(), "Error creating octree from received message");
+                } 
+            });
             
         // init publishers
         publisher = create_publisher<PoseStamped>("/bluerov2/cmd_pose", 10);   // topic + QoS
@@ -77,12 +108,15 @@ private:
     Pose last_odom{};
     Pose init_pose{};
 
+    rclcpp::Subscription<Octomap>::SharedPtr octoSubscriber;
+
     rclcpp::Publisher<PoseStamped>::SharedPtr publisher;
     rclcpp::Publisher<Path>::SharedPtr pathPublisher;
     //geometry_msgs::msg::Pose2D pose;
     PoseStamped cmd{};
     
-    rclcpp::TimerBase::SharedPtr publish_timer;    
+    rclcpp::TimerBase::SharedPtr publish_timer;   
+    Octomap last_octo; 
     
     std::vector<auvNode> path{};
     auvNode current{};

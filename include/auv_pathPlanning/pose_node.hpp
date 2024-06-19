@@ -9,6 +9,8 @@
 #include <cmath>
 #include <algorithm>
 
+#include <octomap/octomap.h>
+
 
 class auvNode : public geometry_msgs::msg::PoseStamped
 {
@@ -132,14 +134,43 @@ public:
         child->pose.orientation.y = q_rot.getY();
         child->pose.orientation.z = q_rot.getZ();
         child->pose.orientation.w = q_rot.getW();
+        // if (child->imFree()) 
         out.push_back(std::move(child));
     }
     // std::cout << "children generated" << std::endl;
     return out;
   }
 
-  double h_cost;
-  double g_cost;
+  bool isFree (double x, double y, double z, unsigned int depth=0)
+  { // octree_->isNodeOccupied (
+    auto node = octree_->search(x, y, z, depth);
+    if (node != NULL) return node->getOccupancy()<=0.5;
+    else return false;
+    
+  }
+
+  bool imFree ()
+  {
+    return isFree(
+      pose.position.x,
+      pose.position.y,
+      pose.position.z,
+      0
+    );
+  }
+
+  void updateOctree(octomap::OcTree* _tree) 
+  {
+    octree_ = std::shared_ptr<octomap::OcTree>((_tree));
+  }
+
+
+private:
+
+   std::shared_ptr<octomap::OcTree> octree_;
+
+    double h_cost;
+    double g_cost;
 };
 
 
