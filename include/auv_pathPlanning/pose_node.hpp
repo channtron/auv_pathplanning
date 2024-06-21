@@ -10,6 +10,16 @@
 #include <algorithm>
 
 #include <octomap/octomap.h>
+#include <octomap/OcTree.h>
+
+#include <fcl/fcl.h>
+#include <fcl/narrowphase/collision_object.h>
+#include <fcl/geometry/octree/octree.h>
+#include <fcl/geometry/shape/sphere.h>
+#include <fcl/narrowphase/collision_request.h>
+#include <fcl/narrowphase/collision_result.h>
+#include <fcl/narrowphase/collision.h>
+
 
 
 class auvNode : public geometry_msgs::msg::PoseStamped
@@ -54,7 +64,11 @@ public:
 */
   inline bool operator==(const auvNode &other) const
   {
-    return pose.position==other.pose.position;
+    // return pose.position==other.pose.position;
+    const double tolerance = 0.5; // Define a tolerance for other checking
+    return std::abs(pose.position.x - other.pose.position.x) < tolerance &&
+            std::abs(pose.position.y - other.pose.position.y) < tolerance &&
+            std::abs(pose.position.z - other.pose.position.z) < tolerance;
   }
 
   
@@ -134,19 +148,37 @@ public:
         child->pose.orientation.y = q_rot.getY();
         child->pose.orientation.z = q_rot.getZ();
         child->pose.orientation.w = q_rot.getW();
-        // if (child->imFree()) 
-        out.push_back(std::move(child));
+        if (child->imFree()) out.push_back(std::move(child));
     }
     // std::cout << "children generated" << std::endl;
     return out;
   }
 
   bool isFree (double x, double y, double z, unsigned int depth=0)
-  { // octree_->isNodeOccupied (
+  { /* octree_->isNodeOccupied (
     auto node = octree_->search(x, y, z, depth);
     if (node != NULL) return node->getOccupancy()<=0.5;
     else return false;
+    */
     
+    // // we model a sample robot with box and sphere collision  geometry
+    std::shared_ptr<fcl::CollisionGeometry<float>> robot(new fcl::Sphere<float>(0.5));
+    auto robotCollisionObj = std::make_shared<fcl::CollisionObject<float>>(robot);
+
+    // // perform collision checking between collision object tree and collision object robot
+    fcl::Vector3f translation(x, y, z);
+    robotCollisionObj->setTranslation(translation);
+    fcl::CollisionRequest<float> requestType(1, false, 1, false);
+    fcl::CollisionResult<float> collisionResult;
+    fcl::collide(robotCollisionObj.get(), treeCollisionObj.get(), requestType, collisionResult);
+
+    if (collisionResult.isCollision()) {
+        std::cout << "Collision detected!" << std::endl;
+    } else {
+        std::cout << "No collision." << std::endl;
+        return true;
+    }
+    return false;
   }
 
   bool imFree ()
@@ -161,17 +193,38 @@ public:
 
   void updateOctree(octomap::OcTree* _tree) 
   {
+    if (_tree) {
+            octree_ = std::shared_ptr<octomap::OcTree>((_tree));
+            fcl::OcTree<float>* tree(new fcl::OcTree<float>(octree_));
+            treeCollisionObj = std::make_shared<fcl::CollisionObject<float>>((std::shared_ptr<fcl::CollisionGeometry<float>>(tree)));
+        } else {
+            // Handle the case where _tree is nullptr, perhaps initializing an empty or default tree
+            fcl::OcTree<float>* tree(new fcl::OcTree<float>(0.1)); // Default resolution
+            treeCollisionObj = std::make_shared<fcl::CollisionObject<float>>((std::shared_ptr<fcl::CollisionGeometry<float>>(tree)));
+        }
+    /*
     octree_ = std::shared_ptr<octomap::OcTree>((_tree));
-  }
+    std::shared_ptr<const octomap::OcTree> sharedTree = std::make_shared<const octomap::OcTree>(*_tree);
+	  fcl::OcTree<double>* tree = new fcl::OcTree<double>(sharedTree);
+	  treeCollisionObj = new fcl::CollisionObject(std::shared_ptr<fcl::CollisionGeometry<double>>(tree));
+    //
+    std::shared_ptr<const fcl::OcTree> tree(new fcl::OcTree(_tree));
+	  treeCollisionObj = new fcl::CollisionObject(tree);*/
+	}
 
 
 private:
 
-   std::shared_ptr<octomap::OcTree> octree_;
-
+    static std::shared_ptr<octomap::OcTree> octree_;
+    static std::shared_ptr<fcl::CollisionObject<float>> treeCollisionObj;
+    
     double h_cost;
     double g_cost;
 };
+
+// Define static members
+std::shared_ptr<fcl::CollisionObject<float>> auvNode::treeCollisionObj = nullptr;
+std::shared_ptr<octomap::OcTree> auvNode::octree_ = nullptr;
 
 
 #endif // BOAT_NODE_H
