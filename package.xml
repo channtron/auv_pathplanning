@@ -20,6 +20,12 @@
   <depend>octomap</depend>
   <depend>octomap_msgs</depend>
 
+  <build_depend>eigen</build_depend>
+  <exec_depend>eigen</exec_depend>
+  <build_depend>ccd</build_depend>
+  <exec_depend>ccd</exec_depend>
+  <depend>fcl</depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
