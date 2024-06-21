@@ -65,7 +65,7 @@ public:
   inline bool operator==(const auvNode &other) const
   {
     // return pose.position==other.pose.position;
-    const double tolerance = 0.5; // Define a tolerance for other checking
+    const double tolerance = 1.0; // Define a tolerance for other checking
     return std::abs(pose.position.x - other.pose.position.x) < tolerance &&
             std::abs(pose.position.y - other.pose.position.y) < tolerance &&
             std::abs(pose.position.z - other.pose.position.z) < tolerance;
@@ -80,11 +80,11 @@ public:
     return std::sqrt(std::pow(dx,2)+std::pow(dy,2)+std::pow(dz,2));
   }
 
-  virtual float distToParent() const {return 1.;}
+  virtual float distToParent() const {return 2.;}
 
   bool isGoal(const auvNode &goal) const
   {
-    const double tolerance = 0.5; // Define a tolerance for goal checking
+    const double tolerance = 1.; // Define a tolerance for goal checking
     return std::abs(pose.position.x - goal.pose.position.x) < tolerance &&
             std::abs(pose.position.y - goal.pose.position.y) < tolerance &&
             std::abs(pose.position.z - goal.pose.position.z) < tolerance;
@@ -94,7 +94,7 @@ public:
   {
     
     std::vector<auvNodePtr> out;
-    const double displacement = 1.0;
+    const double displacement = 2.0;
     const double diagDisp1 = displacement * 0.7071;
     // const double diagDisp2 = diagDisp1 * 0.7071;
     std::vector<std::tuple<double,double,double>> movements {
@@ -162,7 +162,7 @@ public:
     */
     
     // // we model a sample robot with box and sphere collision  geometry
-    std::shared_ptr<fcl::CollisionGeometry<float>> robot(new fcl::Sphere<float>(0.5));
+    std::shared_ptr<fcl::CollisionGeometry<float>> robot(new fcl::Sphere<float>(1.0));
     auto robotCollisionObj = std::make_shared<fcl::CollisionObject<float>>(robot);
 
     // // perform collision checking between collision object tree and collision object robot

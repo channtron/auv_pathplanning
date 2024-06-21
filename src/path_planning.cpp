@@ -42,6 +42,10 @@ public:
         cmd.pose.orientation.z = 0.;
         cmd.pose.orientation.w = 1.;
 
+        goal = auvNode(0., 0., -5., 0.);
+        path.push_back(current);
+        path.push_back(goal);
+
 
         // init subscribers
         subscriber = create_subscription<PoseStamped>(
@@ -129,13 +133,15 @@ private:
         // use last_msg to build and publish command
         std::cout << "A* computation starting" << std::endl;
         auvNode new_goal{};
+
         if (last_goal.header.frame_id=="") new_goal = auvNode(0., 0., -5., 0.);
         else new_goal = auvNode(last_goal.pose);
-        if (!new_goal.isGoal(goal)) 
+        if (!new_goal.isGoal(goal) || (!path[1].imFree() && !path[1].isGoal(goal))) 
         {
             std::cout << "new path being procesed" << std::endl;
             goal = new_goal;
             path = duels::Astar(current, goal);
+            path.push_back(new_goal);
         }
         
         std::cout << "A* computation finished" << std::endl;
@@ -153,6 +159,7 @@ private:
             {
                 path.erase(path.begin());
                 std::cout << "Waypoint reached" << std::endl;
+                path_planning();
             }
             cmd = path[1];
 
