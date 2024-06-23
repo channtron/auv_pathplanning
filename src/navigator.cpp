@@ -57,6 +57,7 @@ public:
                 {
                     RCLCPP_INFO(this->get_logger(), "New goal, path planning computing");
                     goalPublisher->publish(last_goal);
+                    pathIsNew = false;
                     goal = auvNode(last_goal.pose);
                 }
             });
@@ -150,7 +151,7 @@ private:
                 }
                 // std::cout << "checked if replan" << std::endl;
 
-                if (current.isGoal(nextNode) && afterNextNode.imFree())
+                if (current.isGoal(nextNode) && afterNextNode.imFree() && pathIsNew)
                 {
                     path.poses.erase(path.poses.begin());
                     RCLCPP_INFO(this->get_logger(), "Waypoint reached");
