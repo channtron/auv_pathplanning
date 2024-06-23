@@ -39,10 +39,13 @@ ament_auto_find_build_dependencies()
   
 install(DIRECTORY include
   DESTINATION share/${PROJECT_NAME})
+
 ament_auto_add_executable(path_planning  src/path_planning.cpp)
 target_include_directories(path_planning PUBLIC include ${fcl_LIBRARIES} ${CCD_LIBRARIES} ${EIGEN3_LIBRARIES})
-# target_link_libraries(path_planning ${fcl_LIBRARIES} ${CCD_LIBRARIES} ${EIGEN3_LIBRARIES})
-
 target_link_libraries(path_planning ${rclcpp_LIBRARIES} ${FCL_LIB} ${CCD_LIB})
+
+ament_auto_add_executable(navigator  src/navigator.cpp)
+target_include_directories(navigator PUBLIC include ${fcl_LIBRARIES} ${CCD_LIBRARIES} ${EIGEN3_LIBRARIES})
+target_link_libraries(navigator ${rclcpp_LIBRARIES} ${FCL_LIB} ${CCD_LIB})
 
 ament_auto_package()
