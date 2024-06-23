@@ -30,7 +30,7 @@ using octomap_msgs::msg::Octomap;
 class PathPlanning : public rclcpp::Node
 {
 public:
-    PathPlanning(rclcpp::NodeOptions options) : Node("node_name", options)
+    PathPlanning(rclcpp::NodeOptions options) : Node("navigation", options)
     {
         // init whatever is needed for your node
         cmd.header.frame_id = "world";
@@ -82,7 +82,7 @@ public:
                 if (tree) {
                     goal.updateOctree( dynamic_cast<octomap::OcTree *>(tree));
                     std::cout<<"octree updated"<<std::endl;
-                    // if (goal.isFree(11.,0.,-5.,0)) std::cout<<"is free"<<std::endl;
+                    // if (goal.isFree(11.,0.,-5.)) std::cout<<"is free"<<std::endl;
                     // else std::cout<<"is occupied"<<std::endl;
                     // if (goal.imFree()) std::cout<<"is free"<<std::endl;
                     // else std::cout<<"is occupied"<<std::endl;
@@ -136,7 +136,10 @@ private:
 
         if (last_goal.header.frame_id=="") new_goal = auvNode(0., 0., -5., 0.);
         else new_goal = auvNode(last_goal.pose);
-        if (!new_goal.isGoal(goal) || (!path[1].imFree() && !path[1].isGoal(goal))) 
+        if (!new_goal.isGoal(goal) 
+            || (!path[1].imFree() && !path[1].isGoal(goal)) 
+            || (!path[2].imFree() && !path[2].isGoal(goal)) )        
+            // || !current.imFree() 
         {
             std::cout << "new path being procesed" << std::endl;
             goal = new_goal;
@@ -154,13 +157,13 @@ private:
     void publish_waypoints()
     {
         // auto current = auvNode(last_odom);
-        if (path.size() > 1) {
+        if (path.size() > 2) {
             if (current.isGoal(path[1]) && path.size() > 2) 
             {
                 path.erase(path.begin());
                 std::cout << "Waypoint reached" << std::endl;
-                path_planning();
             }
+            path_planning();
             cmd = path[1];
 
             Path pathCmd{};
