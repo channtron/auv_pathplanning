@@ -162,25 +162,28 @@ public:
     if (node != NULL) return node->getOccupancy()<=0.5;
     else return false;
     */
+    if (treeCollisionObj)
+    {
+      // // we model a sample robot with box and sphere collision  geometry
+      std::shared_ptr<fcl::CollisionGeometry<float>> robot(new fcl::Sphere<float>(collisionRadius));
+      auto robotCollisionObj = std::make_shared<fcl::CollisionObject<float>>(robot);
+
+      // // perform collision checking between collision object tree and collision object robot
+      
+      fcl::Vector3f translation(x, y, z);
+      robotCollisionObj->setTranslation(translation);
+      fcl::CollisionRequest<float> requestType(1, false, 1, false);
+      fcl::CollisionResult<float> collisionResult;
+      fcl::collide(robotCollisionObj.get(), treeCollisionObj.get(), requestType, collisionResult);
     
-    // // we model a sample robot with box and sphere collision  geometry
-    std::shared_ptr<fcl::CollisionGeometry<float>> robot(new fcl::Sphere<float>(collisionRadius));
-    auto robotCollisionObj = std::make_shared<fcl::CollisionObject<float>>(robot);
-
-    // // perform collision checking between collision object tree and collision object robot
-    fcl::Vector3f translation(x, y, z);
-    robotCollisionObj->setTranslation(translation);
-    fcl::CollisionRequest<float> requestType(1, false, 1, false);
-    fcl::CollisionResult<float> collisionResult;
-    fcl::collide(robotCollisionObj.get(), treeCollisionObj.get(), requestType, collisionResult);
-
-    if (collisionResult.isCollision()) {
-        std::cout << "Collision detected!" << std::endl;
-    } else {
-        std::cout << "No collision." << std::endl;
-        return true;
+      if (collisionResult.isCollision()) {
+          std::cout << "Collision detected!" << std::endl;
+          return false;
+      } else {
+          std::cout << "No collision." << std::endl;
+      }
     }
-    return false;
+    return true;
   }
 
   bool imFree ()
