@@ -30,26 +30,14 @@ using octomap_msgs::msg::Octomap;
 class PathPlanning : public rclcpp::Node
 {
 public:
-    PathPlanning(rclcpp::NodeOptions options) : Node("navigation", options)
+    PathPlanning(rclcpp::NodeOptions options) : Node("path_planner", options)
     {
         // init whatever is needed for your node
-        cmd.header.frame_id = "world";
-        cmd.pose.position.x = 0.;
-        cmd.pose.position.y = 0.;
-        cmd.pose.position.z = -5.;
-        cmd.pose.orientation.x = 0.;
-        cmd.pose.orientation.y = 0.;
-        cmd.pose.orientation.z = 0.;
-        cmd.pose.orientation.w = 1.;
-
-        goal = auvNode(0., 0., -5., 0.);
-        path.push_back(current);
-        path.push_back(goal);
 
 
         // init subscribers
         subscriber = create_subscription<PoseStamped>(
-            "/goal_pose",    // which topic
+            "path_planning_goal",    // which topic
             10,         // QoS            
             // std::bind(&PathPlanning::path_planning,this, std::placeholders::_1));
             [this](PoseStamped::UniquePtr msg)    // callback are perfect for lambdas
@@ -94,13 +82,7 @@ public:
             });
             
         // init publishers
-        publisher = create_publisher<PoseStamped>("/bluerov2/cmd_pose", 10);   // topic + QoS
-        pathPublisher = create_publisher<Path>("Astar_path", 10);   // topic + QoS
-      
-        // init timer - the function will be called with the given rate
-        publish_timer = create_wall_timer(100ms,    // rate
-                                          [&]()
-                                          { publish_waypoints(); });
+        pathPublisher = create_publisher<Path>("computed_path", 10);   // topic + QoS
         
     }   
   
@@ -110,17 +92,13 @@ private:
     rclcpp::Subscription<Pose>::SharedPtr odomSubscriber;
     PoseStamped last_goal{};
     Pose last_odom{};
-    Pose init_pose{};
 
     rclcpp::Subscription<Octomap>::SharedPtr octoSubscriber;
+    Octomap last_octo; 
 
-    rclcpp::Publisher<PoseStamped>::SharedPtr publisher;
     rclcpp::Publisher<Path>::SharedPtr pathPublisher;
     //geometry_msgs::msg::Pose2D pose;
-    PoseStamped cmd{};
-    
-    rclcpp::TimerBase::SharedPtr publish_timer;   
-    Octomap last_octo; 
+    PoseStamped cmd{};  
     
     std::vector<auvNode> path{};
     auvNode current{};
@@ -128,54 +106,24 @@ private:
     
     void path_planning() // PoseStamped::UniquePtr msg
     {
-
-
         // use last_msg to build and publish command
+        goal = auvNode(last_goal);
         std::cout << "A* computation starting" << std::endl;
-        auvNode new_goal{};
+        std::cout << "new path being procesed" << std::endl;
+        path = duels::Astar(current, goal);
+        path.push_back(goal);
 
-        if (last_goal.header.frame_id=="") new_goal = auvNode(0., 0., -5., 0.);
-        else new_goal = auvNode(last_goal.pose);
-        if (!new_goal.isGoal(goal) 
-            || (!path[1].imFree() && !path[1].isGoal(goal)) 
-            || (!path[2].imFree() && !path[2].isGoal(goal)) )        
-            // || !current.imFree() 
-        {
-            std::cout << "new path being procesed" << std::endl;
-            goal = new_goal;
-            path = duels::Astar(current, goal);
-            path.push_back(new_goal);
-        }
-        
         std::cout << "A* computation finished" << std::endl;
         std::cout << "first waypoint: " << path[1].pose.position.z << std::endl;
         std::cout << "Goal: " << goal.pose.position.z << std::endl;
         std::cout << "last waypoint: " << path.back().pose.position.z << std::endl;
 
-    }
-
-    void publish_waypoints()
-    {
-        // auto current = auvNode(last_odom);
-        if (path.size() > 2) {
-            if (current.isGoal(path[1]) && path.size() > 2) 
-            {
-                path.erase(path.begin());
-                std::cout << "Waypoint reached" << std::endl;
-            }
-            path_planning();
-            cmd = path[1];
-
-            Path pathCmd{};
-            pathCmd.poses[path.size()];
-            pathCmd.header.frame_id = "world";
-            pathCmd.header.stamp = this->now();
-            for (auto const & waypoint : path) pathCmd.poses.push_back(waypoint);
-            pathPublisher->publish(pathCmd);
-        } else {
-            RCLCPP_WARN(this->get_logger(), "Path planning failed or path is too short");
-        }
-        publisher->publish(cmd);
+        Path pathCmd{};
+        pathCmd.poses[path.size()];
+        pathCmd.header.frame_id = "world";
+        pathCmd.header.stamp = this->now();
+        for (auto const & waypoint : path) pathCmd.poses.push_back(waypoint);
+        pathPublisher->publish(pathCmd);
     }
     
 };
