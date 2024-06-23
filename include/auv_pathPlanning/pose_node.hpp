@@ -65,7 +65,6 @@ public:
   inline bool operator==(const auvNode &other) const
   {
     // return pose.position==other.pose.position;
-    const double tolerance = 1.0; // Define a tolerance for other checking
     return std::abs(pose.position.x - other.pose.position.x) < tolerance &&
             std::abs(pose.position.y - other.pose.position.y) < tolerance &&
             std::abs(pose.position.z - other.pose.position.z) < tolerance;
@@ -84,7 +83,6 @@ public:
 
   bool isGoal(const auvNode &goal) const
   {
-    const double tolerance = 1.; // Define a tolerance for goal checking
     return std::abs(pose.position.x - goal.pose.position.x) < tolerance &&
             std::abs(pose.position.y - goal.pose.position.y) < tolerance &&
             std::abs(pose.position.z - goal.pose.position.z) < tolerance;
@@ -94,7 +92,6 @@ public:
   {
     
     std::vector<auvNodePtr> out;
-    const double displacement = 2.0;
     const double diagDisp1 = displacement * 0.7071;
     // const double diagDisp2 = diagDisp1 * 0.7071;
     std::vector<std::tuple<double,double,double>> movements {
@@ -133,36 +130,41 @@ public:
     // Create child nodes for each direction
     for (const auto &delta : movements)
     {
-        auto child = std::make_unique<auvNode>(*this);
-        child->pose.position.x += std::get<0>(delta);
-        child->pose.position.y += std::get<1>(delta);
-        child->pose.position.z += std::get<2>(delta);
-        
-        tf2::Quaternion q_orig, q_rot, q_new;
-        q_orig.setRPY(0.0, 0.0, 0.0);
-        q_rot.setRPY(0.0, 0.0, atan2(std::get<1>(delta),std::get<0>(delta))); // -M_PI/2
-        q_new = q_orig * q_new;
-        // std::cout <<"x: " << q_rot.getX() << " y: " << q_rot.getY() << 
-        //           " z: " << q_rot.getZ() << " w: " << q_rot.getW() << std::endl;
-        child->pose.orientation.x = q_rot.getX();
-        child->pose.orientation.y = q_rot.getY();
-        child->pose.orientation.z = q_rot.getZ();
-        child->pose.orientation.w = q_rot.getW();
-        if (child->imFree()) out.push_back(std::move(child));
+        octomap::point3d origin(pose.position.x, pose.position.y, pose.position.z);
+        octomap::point3d direction(std::get<0>(delta), std::get<1>(delta), std::get<2>(delta));
+        octomap::point3d end;
+        if (!octree_->castRay(origin, direction, end, true, displacement))
+        {
+          auto child = std::make_unique<auvNode>(*this);
+          child->pose.position.x += std::get<0>(delta);
+          child->pose.position.y += std::get<1>(delta);
+          child->pose.position.z += std::get<2>(delta);
+          
+          tf2::Quaternion q_rot;
+          q_rot.setRPY(0.0, 0.0, atan2(std::get<1>(delta),std::get<0>(delta))); // -M_PI/21
+          // std::cout <<"x: " << q_rot.getX() << " y: " << q_rot.getY() << 
+          //           " z: " << q_rot.getZ() << " w: " << q_rot.getW() << std::endl;
+          child->pose.orientation.x = q_rot.getX();
+          child->pose.orientation.y = q_rot.getY();
+          child->pose.orientation.z = q_rot.getZ();
+          child->pose.orientation.w = q_rot.getW();
+          if (child->pose.position.z <= -1.0 && child->imFree()) out.push_back(std::move(child));
+
+        }
     }
     // std::cout << "children generated" << std::endl;
     return out;
   }
 
-  bool isFree (double x, double y, double z, unsigned int depth=0)
+  bool isFree (double x, double y, double z)
   { /* octree_->isNodeOccupied (
-    auto node = octree_->search(x, y, z, depth);
+    auto node = octree_->search(x, y, z);
     if (node != NULL) return node->getOccupancy()<=0.5;
     else return false;
     */
     
     // // we model a sample robot with box and sphere collision  geometry
-    std::shared_ptr<fcl::CollisionGeometry<float>> robot(new fcl::Sphere<float>(1.0));
+    std::shared_ptr<fcl::CollisionGeometry<float>> robot(new fcl::Sphere<float>(collisionRadius));
     auto robotCollisionObj = std::make_shared<fcl::CollisionObject<float>>(robot);
 
     // // perform collision checking between collision object tree and collision object robot
@@ -186,8 +188,7 @@ public:
     return isFree(
       pose.position.x,
       pose.position.y,
-      pose.position.z,
-      0
+      pose.position.z
     );
   }
 
@@ -218,6 +219,10 @@ private:
     static std::shared_ptr<octomap::OcTree> octree_;
     static std::shared_ptr<fcl::CollisionObject<float>> treeCollisionObj;
     
+    static double displacement; // Define displacement between nodes
+    static double tolerance; // Define a tolerance for goal/other checking
+    static double collisionRadius; // Collision sphere radius
+
     double h_cost;
     double g_cost;
 };
@@ -225,6 +230,11 @@ private:
 // Define static members
 std::shared_ptr<fcl::CollisionObject<float>> auvNode::treeCollisionObj = nullptr;
 std::shared_ptr<octomap::OcTree> auvNode::octree_ = nullptr;
+
+
+double auvNode::displacement{2.};
+double auvNode::tolerance{1.}; 
+double auvNode::collisionRadius{2}; 
 
 
 #endif // BOAT_NODE_H
