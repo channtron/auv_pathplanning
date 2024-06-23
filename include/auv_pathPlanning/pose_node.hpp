@@ -216,6 +216,13 @@ public:
 	  treeCollisionObj = new fcl::CollisionObject(tree);*/
 	}
 
+  void setDisplacement (double disp) 
+  {
+    displacement=disp;
+    tolerance=displacement/2;
+  }
+  void setRadius (double rad) {collisionRadius=rad;}
+
 
 private:
 
@@ -237,7 +244,7 @@ std::shared_ptr<octomap::OcTree> auvNode::octree_ = nullptr;
 
 double auvNode::displacement{2.};
 double auvNode::tolerance{1.}; 
-double auvNode::collisionRadius{2}; 
+double auvNode::collisionRadius{2.}; 
 
 
 #endif // BOAT_NODE_H

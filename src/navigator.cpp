@@ -33,6 +33,12 @@ public:
     Navigator(rclcpp::NodeOptions options) : Node("navigation", options)
     {
         // init whatever is needed for your node
+        double displacement = declare_parameter("displacement", 2.);
+        double collisionRadius = declare_parameter("radius", 2.);
+
+        goal.setDisplacement(displacement);
+        goal.setRadius(collisionRadius);
+
         cmd.header.frame_id = "world";
 
         goal = auvNode(0., 0., -5., 0.);

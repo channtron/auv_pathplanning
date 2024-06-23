@@ -33,7 +33,11 @@ public:
     PathPlanning(rclcpp::NodeOptions options) : Node("path_planner", options)
     {
         // init whatever is needed for your node
+        double displacement = declare_parameter("displacement", 2.);
+        double collisionRadius = declare_parameter("radius", 2.);
 
+        goal.setDisplacement(displacement);
+        goal.setRadius(collisionRadius);
 
         // init subscribers
         subscriber = create_subscription<PoseStamped>(
